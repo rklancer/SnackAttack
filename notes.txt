@@ -1,0 +1,115 @@
+http://www.engblaze.com/we-interrupt-this-program-to-bring-you-a-tutorial-on-arduino-interrupts/
+http://www.engblaze.com/microcontroller-tutorial-avr-and-arduino-timer-interrupts/
+
+respHandler -- handles response to serial input (from...?)
+
+statusind
+---
+  time since reset in 20ths of a second
+  (incremented only in timer 1 ISR)
+
+
+status_exec
+status_rt
+status_bkgnd
+---
+  set bit 0 to indicate task should be executed in next loop
+  set bit 1 to indicate task has been completed
+
+
+timer 1
+---
+  setup: 
+
+	TCCR1A = 0x00;
+	TCCR1C = 0x00;
+	TCCR1B = TCCR1B | 0x03;       // prescaler = 64
+	TCNT1H = 0xCF;                // reset timer
+	TCNT1L = 0x2C;
+
+	// this counts UP from 0xCF2C and triggers an interrupt on overflow
+	// resulting interrupt rate is 20/s
+	// = 16e6 / 64 / (0xFFFF - 0x2F2C + 1)
+
+  ISR:
+
+
+
+timer 2
+---
+  apparently disabled for now
+
+
+loop
+---
+
+  at end of loop, busy waits for bit 0 ("execute bit") of status_exec to be set
+  (is this a good idea?)
+
+
+background
+---
+
+  does nothing for now. Just clears bit 0 ('execute bit') and sets bit 1 ('completed bit')
+
+
+realtime
+---
+
+	set status_init if statusind > 25 (up for 1.25s or more)
+	update fTime with the time, in seconds, since last reset
+	set iLedState according to uptime (to blink LED)
+
+	read A/D input pin into iAdPinVal
+
+	read one byte (?) from serial "0" (laptop input?) into iSerCmd
+
+	read from serial 1 (motor controller?) while it has characters
+	  - append to cRespBuf
+	  - if response complete, call respHandler()
+
+	handle iSerCmd (laptop command)
+	  set iMtrCmdModeSel to a value corresponding to laptop input
+
+	handle iMtrCmdModeSel
+
+	  set iMtr1Cmd and Mtr2Cmd
+	  construct cMtrCmds string to be sent to motor controller
+	  set iMtrCtrlEnablePinVal = 1
+
+	  write to LED pin according to iLedState
+	  write to motor control enable pin according to iMtrControlEnablePinVal (s/b HIGH)
+
+
+	  if status_init 0 bit IS set and status_config 0 bit IS NOT set:
+	    configure motor controller to not echo
+	    set status_config 0
+
+	  if status_init 0 bit IS set and we're on an even numbered trip thru loop:
+	    send cMtrCmds motor comman string
+
+	  if status_init 0 bit IS set, and it's a full-second interval (statusind %20 == 0):
+	    send queries to motor controller as follows:
+
+	    ?FF 1\r
+	    ?V\r
+
+	  if it's a quarter-second interval:
+	    send various stuff to the serial "0" port (laptop):
+
+	      statusind, uiTimer, uiTimerMin, uiTimerMax, 
+	      iAdPinVal, 
+	      iMtr1Cmd, iMtr2Cmd,
+	      iVmot, iMtrCtrlFaultWord
+
+
+  capture the current state of the real-time timer into uiTimer
+  update uiTimerMin and uiTimerMax
+
+  clear status_rt bit 0 ("execute bit")
+  set status_rt bit 1 ("completed bit")
+
+
+  respHandler:
+  ---
+  
