@@ -71,7 +71,7 @@ int respHandler(void);
 
 volatile int status_config = 0;
 volatile int status_init = 0;
-volatile unsigned int statusind = 0;
+volatile unsigned int ticks = 0;
 
 unsigned int uiTimer = 0;
 unsigned int uiTimerMin = 0xFFFF;
@@ -183,7 +183,7 @@ int realtime() {
   int i = 0;
   int iTmp = 0;
 
-  if (statusind > 25) {
+  if (ticks > 2 * TICKS_PER_SECOND) {
     // Arduino has been powered-up for several minor frames
     // the rest of the system, e.g. motor controller should be powered up as well
     // set flag to indicate to the downstream logic that system is now initialized
@@ -194,9 +194,9 @@ int realtime() {
   fTime += 0.05;
 
 // to indicate that the MCU is alive, toggle the state of the LED attached to pin 13 once every 1 s
-//  if((statusind % 61) == 0){    // if using timer 2
-  if((statusind % 20) == 0){      // if using timer 1
-//    statusind = 0;
+//  if((ticks % 61) == 0){    // if using timer 2
+  if((ticks % TICKS_PER_SECOND) == 0){      // if using timer 1
+//    ticks = 0;
     if(iLedState == 0){
       iLedState = 1;
     }else{
@@ -388,7 +388,7 @@ int realtime() {
     status_config = status_config | 0x01;
   }
 
-  if((BTEST(status_init, 0)) & ((statusind % 2) == 0)){
+  if((BTEST(status_init, 0)) & ((ticks % 2) == 0)){
     // send motor commands to motor controller
 
     // based on test completed so far, for some reason, the motor controller does not respond to
@@ -397,14 +397,14 @@ int realtime() {
     Serial1.print(cMtrCmds);
   }
 
-  if((BTEST(status_init, 0)) & ((statusind % 20) == 0)){
+  if((BTEST(status_init, 0)) & ((ticks % 20) == 0)){
     // send queries to motor controller
     Serial1.print("?FF 1\r");
 //    Serial1.print("?FF 2\r");
     Serial1.print("?V\r");
   }
 
-  if((statusind % 5) == 0){
+  if((ticks % 5) == 0){
     // send data to laptop
     // size of cDataBuf is 128 bytes. do not attempt to load with more than 127 bytes. otherwise, null termination
     // byte will be overwritten such that library functions do not work properly. also, data written beyond 128
@@ -413,7 +413,7 @@ int realtime() {
     // load the buffer and transmit the buffer
     // note that the Arduino library implementation of sprintf does not support floats
     sprintf(cDataBuf, "%u,%u,%u,%u,%i,%i,%i,%i,%i\r", 
-      statusind, uiTimer, uiTimerMin, uiTimerMax, 
+      ticks, uiTimer, uiTimerMin, uiTimerMax, 
       iAdPinVal, 
       iMtr1Cmd, iMtr2Cmd,
       iVmot, iMtrCtrlFaultWord);
@@ -469,8 +469,8 @@ int respHandler() {
 
 
 ISR(TIMER1_OVF_vect){
-  // increment statusind to measure the progrssion of time
-  statusind++;
+  // increment ticks to measure the progression of time
+  ticks++;
 
   SET_PENDING(executiveTask);
   SET_PENDING(realtimeTask);
