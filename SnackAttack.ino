@@ -184,8 +184,8 @@ int realtime() {
   int i = 0;
   int iTmp = 0;
 
-  if (ticks > 2 * TICKS_PER_SECOND) {
-    // Arduino has been powered-up for several minor frames
+  if (millis() > 1250) {
+    // Arduino has been powered-up for 1.25 seconds.
     // the rest of the system, e.g. motor controller should be powered up as well
     // set flag to indicate to the downstream logic that system is now initialized
     isInitialized = true;
