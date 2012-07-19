@@ -9,7 +9,7 @@
 //  motor 2 = right motor
 //----------------------------------------------------------------------------80
 
-#include <avr/interrupt.h>  
+#include <avr/interrupt.h>
 #include <avr/io.h>
 #include <stdbool.h>
 
@@ -44,12 +44,12 @@ Task backgroundTask = {
 */
 void runIfPending(Task *t) {
   cli();
-  
+
   if (IS_PENDING(*t)) {
     CLEAR_PENDING(*t);
     sei();
     t->taskMethod();
-  } 
+  }
   else {
     sei();
   }
@@ -59,13 +59,13 @@ void runIfPending(Task *t) {
 
 
 // macros
-#define BTF(x,b)	((x) ^= (1 << (b)))		// Bit toggle
-#define BCF(x,b)	((x) &= ~(1 << (b)))		// Bit clear
-#define BSF(x,b)	((x) |= (1 << (b)))		// Bit set
-#define BTEST(x,b)	(!!((x) & (1 << (b))))  	// Bit test
+#define BTF(x,b)  ((x) ^= (1 << (b)))   // Bit toggle
+#define BCF(x,b)  ((x) &= ~(1 << (b)))    // Bit clear
+#define BSF(x,b)  ((x) |= (1 << (b)))   // Bit set
+#define BTEST(x,b)  (!!((x) & (1 << (b))))    // Bit test
 
-#define	max(a,b)	(((a) > (b)) ? (a) : (b))
-#define	min(a,b)	(((a) < (b)) ? (a) : (b))
+#define max(a,b)  (((a) > (b)) ? (a) : (b))
+#define min(a,b)  (((a) < (b)) ? (a) : (b))
 
 // function prototypes
 int respHandler(void);
@@ -142,7 +142,7 @@ void setup() {
   // Clear the Timer Counter/Control Registers for Timer 1:
   TCCR1A = 0;
   TCCR1B = 0;
- 
+
   // Set bits CS10 and CS11 of timer control register TCCR1B.
   // This requests one count per 64 clock cycles.
   TCCR1B |= (1 << CS10);
@@ -155,7 +155,7 @@ void setup() {
   // clock cycle used to clear the counter.
   OCR1A = (16000000 / 64) / TICKS_PER_SECOND - 1;
 
-  // Turn on Clear Timer on Compare Match mode. 
+  // Turn on Clear Timer on Compare Match mode.
   // This causes a timer interrupt to be triggered whenever the Timer 1 counter equals the
   // value in OCR1A. (One subsequent cycle is used to reset the Timer 1 counter)
   TCCR1B |= (1 << WGM12);
@@ -169,7 +169,7 @@ void setup() {
 
 
 void loop() {
-  // Note that Arduino's main() busy waits: it sets up an infinite loop which calls our 
+  // Note that Arduino's main() busy waits: it sets up an infinite loop which calls our
   // loop(). Therefore, there is little to be gained by not returning from loop()
   // immediately after checking for tasks.
   runIfPending(&executiveTask);
@@ -297,7 +297,7 @@ int realtime() {
       break;
   }
 
-  // operational logic: 
+  // operational logic:
   // line-following,
   // collision avoidance using distance sensors,
   // emergency stop activation based on state of bumpers and buttons that may be pressed by a human
@@ -352,7 +352,7 @@ int realtime() {
   // command value associated with motor 1 must be multiplied by -1 due to encoder polarity issue
   iTmp = -1*iMtr1Cmd;
   sprintf(cMtrCmds, "!M %i %i\r", iTmp, iMtr2Cmd);
-      
+
   // decide if motor control board should be disabled/enabled
   // for now, set to enabled
   iMtrCtrlEnablePinVal = 1;
@@ -413,9 +413,9 @@ int realtime() {
 
     // load the buffer and transmit the buffer
     // note that the Arduino library implementation of sprintf does not support floats
-    sprintf(cDataBuf, "%u,%u,%u,%u,%i,%i,%i,%i,%i\r", 
-      ticks, uiTimer, uiTimerMin, uiTimerMax, 
-      iAdPinVal, 
+    sprintf(cDataBuf, "%u,%u,%u,%u,%i,%i,%i,%i,%i\r",
+      ticks, uiTimer, uiTimerMin, uiTimerMax,
+      iAdPinVal,
       iMtr1Cmd, iMtr2Cmd,
       iVmot, iMtrCtrlFaultWord);
     Serial.print(cDataBuf);
