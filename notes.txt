@@ -1,6 +1,27 @@
 http://www.engblaze.com/we-interrupt-this-program-to-bring-you-a-tutorial-on-arduino-interrupts/
 http://www.engblaze.com/microcontroller-tutorial-avr-and-arduino-timer-interrupts/
 
+more detail:
+
+http://letsmakerobots.com/node/28278
+
+note infinite loop in Arduino's main.cpp is there however you implement loop()! see https://github.com/arduino/Arduino/blob/master/hardware/arduino/cores/arduino/main.cpp
+
+delay() also appears to busy wait! -- see 
+
+Could make timers more clear using FlexiTimer2 -- http://www.arduino.cc/playground/Main/FlexiTimer2
+
+
+--
+  use delay so we're not busy waiting in loop()
+  
+  if splitting up state and I/O in realitime(), explicitly make a 'state' structure
+
+  Could make timers more clear using FlexiTimer2 -- http://www.arduino.cc/playground/Main/FlexiTimer2
+
+
+
+
 respHandler -- handles response to serial input (from...?)
 
 statusind
@@ -112,4 +133,11 @@ realtime
 
   respHandler:
   ---
-  
+
+
+
+-- TODO
+
+statusind -> ticks
+macros for which task to complete
+
