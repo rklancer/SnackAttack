@@ -11,6 +11,7 @@
 
 #include <avr/interrupt.h>  
 #include <avr/io.h>
+#include <stdbool.h>
 
 // It is necessary to put user-defined types in their own header file, because
 // the Arduino IDE handles user-defined types incorrectly, see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1264694180
@@ -69,8 +70,8 @@ void runIfPending(Task *t) {
 // function prototypes
 int respHandler(void);
 
-volatile int status_config = 0;
-volatile int status_init = 0;
+volatile bool isConfigured = false;
+volatile bool isInitialized = false;
 volatile unsigned int ticks = 0;
 
 unsigned int uiTimer = 0;
@@ -187,7 +188,7 @@ int realtime() {
     // Arduino has been powered-up for several minor frames
     // the rest of the system, e.g. motor controller should be powered up as well
     // set flag to indicate to the downstream logic that system is now initialized
-    status_init = status_init || 0x01;
+    isInitialized = true;
   }
 
   // keep track of time elapsed since last MCU reset
@@ -376,7 +377,7 @@ int realtime() {
     digitalWrite(iMtrCtrlEnablePinNum, HIGH);
   }
 
-  if((BTEST(status_init, 0)) & (!(BTEST(status_config, 0)))){
+  if (isInitialized && !isConfigured) {
     // send configuration commands to motor controller
 
     // disable echoing of characters sent to the motor controller
@@ -385,10 +386,10 @@ int realtime() {
 
     // set flag to indicate that configuration commands have been sent to the motor controller
     // accordingly, the configuration commands will not be sent again
-    status_config = status_config | 0x01;
+    isConfigured = true;
   }
 
-  if((BTEST(status_init, 0)) & ((ticks % 2) == 0)){
+  if (isInitialized && (ticks % 2) == 0) {
     // send motor commands to motor controller
 
     // based on test completed so far, for some reason, the motor controller does not respond to
@@ -397,7 +398,7 @@ int realtime() {
     Serial1.print(cMtrCmds);
   }
 
-  if((BTEST(status_init, 0)) & ((ticks % 20) == 0)){
+  if (isInitialized && (ticks % TICKS_PER_SECOND) == 0) {
     // send queries to motor controller
     Serial1.print("?FF 1\r");
 //    Serial1.print("?FF 2\r");
