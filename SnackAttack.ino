@@ -11,7 +11,6 @@
 
 #include <avr/interrupt.h>
 #include <avr/io.h>
-#include <stdbool.h>
 
 // It is necessary to put user-defined types in their own header file, because
 // the Arduino IDE handles user-defined types incorrectly, see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1264694180
