@@ -9,10 +9,53 @@
 //  motor 2 = right motor
 //----------------------------------------------------------------------------80
 
-//#define BENCH_ENV 0x01
-
 #include <avr/interrupt.h>  
 #include <avr/io.h>
+
+// It is necessary to put user-defined types in their own header file, because
+// the Arduino IDE handles user-defined types incorrectly, see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1264694180
+#include "task.h"
+
+#define PENDING 0x01
+#define CLEAR_PENDING(t) ((t).status &= ~PENDING)
+#define SET_PENDING(t) ((t).status |= PENDING)
+#define IS_PENDING(t) (!!((t).status & PENDING))
+
+int executive(void);
+int realtime(void);
+int background(void);
+
+Task executiveTask = {
+  0, &executive
+};
+
+Task realtimeTask = {
+  0, &realtime
+};
+
+Task backgroundTask = {
+  0, &background
+};
+
+/**
+  If Task t is marked pending, execute it.
+  Checks and clears pending status atomically.
+*/
+void runIfPending(Task *t) {
+  cli();
+  
+  if (IS_PENDING(*t)) {
+    CLEAR_PENDING(*t);
+    sei();
+    t->taskMethod();
+  } 
+  else {
+    sei();
+  }
+}
+
+#define TICKS_PER_SECOND 20
+
 
 // macros
 #define BTF(x,b)	((x) ^= (1 << (b)))		// Bit toggle
@@ -28,9 +71,6 @@ int respHandler(void);
 
 volatile int status_config = 0;
 volatile int status_init = 0;
-volatile int status_exec = 0;
-volatile int status_rt = 0;
-volatile int status_bkgnd = 0;
 volatile unsigned int statusind = 0;
 
 unsigned int uiTimer = 0;
@@ -72,11 +112,11 @@ int iVmot = 0;
 int iV5out = 0;
 int iMtrCtrlFaultWord = 0;
 
-void setup() {                
-  // initialization
+/**
+  Do Arduino initialization here
+*/
+void setup() {
 
-  // pin 13 has an LED connected on most Arduino boards
-  // initialize the digital pin as an output.
   pinMode(iLedPinNum, OUTPUT);
   pinMode(iMtrCtrlEnablePinNum, OUTPUT);
 
@@ -95,33 +135,55 @@ void setup() {
   // configure and start timers
   // perform this task just before exiting initialization logic, i.e. about to enter real-time mode
 
-  // configure timer 1 for normal mode
-  // TOV1 flag will be cleared by the associated ISR
-  TCCR1A = 0x00;
-  TCCR1C = 0x00;
-  TCCR1B = TCCR1B | 0x03;       // prescaler = 64
-  TCNT1H = 0xCF;                // reset timer
-  TCNT1L = 0x2C;
-//  TIMSK1 = TIMSK1 & 0xFE;       // disable inerrupt
-  TIMSK1 = TIMSK1 | 0x01;       // enable interrupt
+  // disable all interrupts before messing with timer registers
+  cli();
 
-  // configure timer 2 for normal mode
-  // TOV2 flag will be cleared by the associated ISR
-  // timer 2 overflow interrupt vector handler called (16x10^6/256)/1024 = 61.035 times per second
-  TCCR2A = 0x00;
-  TCCR2B = TCCR2B | 0x07;       // prescaler = 1024
-  TCNT2 = 0x00;                 // reset timer
-  TIMSK2 = TIMSK2 & 0xFE;       // disable interrupt
-//  TIMSK2 = TIMSK2 | 0x01;       // enable interrupt
+  // Clear the Timer Counter/Control Registers for Timer 1:
+  TCCR1A = 0;
+  TCCR1B = 0;
+ 
+  // Set bits CS10 and CS11 of timer control register TCCR1B.
+  // This requests one count per 64 clock cycles.
+  TCCR1B |= (1 << CS10);
+  TCCR1B |= (1 << CS11);
+
+  // There are 16,000,000 / 64 counts per second
+  // Divide by the number of timer interrupts per second to get the number of
+  // counts per timer interrupt.
+  // Set the compare-match register to that value, minus 1 to account for the 1
+  // clock cycle used to clear the counter.
+  OCR1A = (16000000 / 64) / TICKS_PER_SECOND - 1;
+
+  // Turn on Clear Timer on Compare Match mode. 
+  // This causes a timer interrupt to be triggered whenever the Timer 1 counter equals the
+  // value in OCR1A. (One subsequent cycle is used to reset the Timer 1 counter)
+  TCCR1B |= (1 << WGM12);
+
+  // Finally, enable timer compare interrupt:
+  TIMSK1 |= (1 << OCIE1A);
+
+  // re-enable interrupts
+  sei();
 }
 
-int realtime(){
-  // real-time logic. executes once every 0.05 s
+
+void loop() {
+  // Note that Arduino's main() busy waits: it sets up an infinite loop which calls our 
+  // loop(). Therefore, there is little to be gained by not returning from loop()
+  // immediately after checking for tasks.
+  runIfPending(&executiveTask);
+  runIfPending(&backgroundTask);
+  runIfPending(&realtimeTask);
+}
+
+
+int realtime() {
+  // real-time logic. Executes TICKS_PER_SECOND times per second.
 
   int i = 0;
   int iTmp = 0;
 
-  if(statusind > 25){
+  if (statusind > 25) {
     // Arduino has been powered-up for several minor frames
     // the rest of the system, e.g. motor controller should be powered up as well
     // set flag to indicate to the downstream logic that system is now initialized
@@ -371,30 +433,24 @@ int realtime(){
     uiTimerMax = uiTimer;
   }
 
-  // clear flag for executive to execute real-time task
-  BCF(status_rt, 0);
-  // set flag indicating that real-time task execution is complete
-  BSF(status_rt, 1);
-
   return 0;
 }
 
-int background(){
+int background() {
 
   // execute any tasks that are not time sensitive and might take a long time to complete
   // transmission of large amount of status data
   // handling input commands from an external computer
   // etc.
 
-  // clear flag for executive to execute background task
-  BCF(status_bkgnd, 0);
-  // set flag indicating that background task execution is complete
-  BSF(status_bkgnd, 1);
-
   return 0;
 }
 
-int respHandler(){
+int executive() {
+  return 0;
+}
+
+int respHandler() {
   // determine the type of motor controller response
   // and parse the data based on the expected format
 
@@ -410,78 +466,17 @@ int respHandler(){
   return 0;
 }
 
-void loop() {
-  int itmp = 0;
-  // executive loop
-  // execute real-time and background tasks sequentially
-  // when ISR resets status_rt<0> and status_bkgnd<0>, exit tight loop to
-  // beginning of executive loop
 
-  // test real-time logic status and execute, as required, real-time logic
-  if(BTEST(status_rt, 0)) itmp = realtime();
-  //if(BTEST(uctmp, 0)) BSF(faultind[0], 6);
-
-  // test background logic status and execute, as required, background logic
-  if(BTEST(status_bkgnd, 0)) itmp = background();
-  //if(BTEST(uctmp, 0)) BSF(faultind[0], 6);
-
-  // clear flag for executive to execute main loop
-  BCF(status_exec, 0);
-  // set flag to indicate that executive task execution is complete
-  BSF(status_exec, 1);
-
-  while(!BTEST(status_exec, 0)){
-    //delay(1000);
-  }
-}
 
 ISR(TIMER1_OVF_vect){
-  // clear interrupt flag. specs indicate that the flag is cleared by hardware as part of call to the ISR.
-  // accordingly, probably do not need to do this
-//  TIFR1 = TIFR1 & 0xFE;
-
-  //reset timer
-  TCNT1H = 0xCF;
-  TCNT1L = 0x2C;
-
   // increment statusind to measure the progrssion of time
   statusind++;
 
-  // clear flags associated with indication that the various tasks have completed execution
-  BCF(status_exec, 1);
-  BCF(status_rt, 1);
-  BCF(status_bkgnd, 1);
-
-  // set flags associated with indication that various tasks should be executed
-  BSF(status_exec, 0);
-  BSF(status_rt, 0);
-  BSF(status_bkgnd, 0);
+  SET_PENDING(executiveTask);
+  SET_PENDING(realtimeTask);
+  SET_PENDING(backgroundTask);
 }
 
-ISR(TIMER2_OVF_vect){
-  // clear interrupt flag. specs indicate that the flag is cleared by hardware as part of call to the ISR.
-  // accordingly, probably do not need to do this
-//  TIFR2 = TIFR2 & 0xFE;
-
-  // reset timer
-  // since timer rolled over to 0, do not need to reset the timer
-  // in fact, resetting the timer now, after several instructions/MCU cycles have executed since the rollover
-  // event will tend to skew the timing logic
-//  TCNT2 = 0;
-
-  // increment statusind to measure the progrssion of time
-//  statusind++;
-
-  // clear flags associated with indication that the various tasks have completed execution
-  BCF(status_exec, 1);
-  BCF(status_rt, 1);
-  BCF(status_bkgnd, 1);
-
-  // set flags associated with indication that various tasks should be executed
-  BSF(status_exec, 0);
-  BSF(status_rt, 0);
-  BSF(status_bkgnd, 0);
-}
 
 //----------------------------------------------------------------------------80
 // end of file
