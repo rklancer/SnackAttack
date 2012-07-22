@@ -468,7 +468,7 @@ int respHandler() {
 
 
 
-ISR(TIMER1_OVF_vect){
+ISR(TIMER1_COMPA_vect){
   // increment ticks to measure the progression of time
   ticks++;
 
