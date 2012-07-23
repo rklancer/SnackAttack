@@ -56,61 +56,12 @@ void runIfPending(Task *t) {
 
 #define TICKS_PER_SECOND 20
 
-
-// macros
-#define BTF(x,b)  ((x) ^= (1 << (b)))   // Bit toggle
-#define BCF(x,b)  ((x) &= ~(1 << (b)))    // Bit clear
-#define BSF(x,b)  ((x) |= (1 << (b)))   // Bit set
-#define BTEST(x,b)  (!!((x) & (1 << (b))))    // Bit test
-
-#define max(a,b)  (((a) > (b)) ? (a) : (b))
-#define min(a,b)  (((a) < (b)) ? (a) : (b))
-
-// function prototypes
-int respHandler(void);
-
 volatile bool isConfigured = false;
 volatile bool isInitialized = false;
 volatile unsigned int ticks = 0;
 
-unsigned int uiTimer = 0;
-unsigned int uiTimerMin = 0xFFFF;
-unsigned int uiTimerMax = 0;
-float fTime = 0.;
-
-int iLedPinNum = 13;
-int iLedState = 0;
-
-int iAdPinNum = 0;
-int iAdPinVal = 0;
-
-int iMtrCtrlEnablePinNum = 12;
-int iMtrCtrlEnablePinVal = 0;
-
-int iMtrCmdModeSel = 0;
-
-float fMtrCmdAmp = 750.;
-float fMtrCmdFreq = 0.25;
-
-int iMtr1Cmd = 0;
-int iMtr2Cmd = 0;
-char cMtrCmds[16] = "";
-
-char cDataBuf[128] = "";
-
-int iSerCmd = 0;
-//char cSerCmdResp[32] = "";
-
-char cRespBuf[32] = "";
-char cRespByte = 0x00;
-int iRespBufLen = 32;
-int iRespComplete = 0;
-int iRespLen = 0;
-
-int iVdr = 0;
-int iVmot = 0;
-int iV5out = 0;
-int iMtrCtrlFaultWord = 0;
+const int iLedPinNum = 13;
+const int iMtrCtrlEnablePinNum = 12;
 
 /**
   Do Arduino initialization here
@@ -175,6 +126,72 @@ void loop() {
   runIfPending(&backgroundTask);
   runIfPending(&realtimeTask);
 }
+
+
+ISR(TIMER1_COMPA_vect){
+  // Increment `ticks` to measure the progression of time
+  ticks++;
+
+  // For now, we'll execute every task per tick.
+  SET_PENDING(executiveTask);
+  SET_PENDING(realtimeTask);
+  SET_PENDING(backgroundTask);
+}
+
+
+
+
+
+
+// macros
+#define BTF(x,b)  ((x) ^= (1 << (b)))   // Bit toggle
+#define BCF(x,b)  ((x) &= ~(1 << (b)))    // Bit clear
+#define BSF(x,b)  ((x) |= (1 << (b)))   // Bit set
+#define BTEST(x,b)  (!!((x) & (1 << (b))))    // Bit test
+
+#define max(a,b)  (((a) > (b)) ? (a) : (b))
+#define min(a,b)  (((a) < (b)) ? (a) : (b))
+
+// function prototypes
+int respHandler(void);
+
+unsigned int uiTimer = 0;
+unsigned int uiTimerMin = 0xFFFF;
+unsigned int uiTimerMax = 0;
+float fTime = 0.;
+
+int iLedState = 0;
+
+int iAdPinNum = 0;
+int iAdPinVal = 0;
+
+
+int iMtrCtrlEnablePinVal = 0;
+
+int iMtrCmdModeSel = 0;
+
+float fMtrCmdAmp = 750.;
+float fMtrCmdFreq = 0.25;
+
+int iMtr1Cmd = 0;
+int iMtr2Cmd = 0;
+char cMtrCmds[16] = "";
+
+char cDataBuf[128] = "";
+
+int iSerCmd = 0;
+//char cSerCmdResp[32] = "";
+
+char cRespBuf[32] = "";
+char cRespByte = 0x00;
+int iRespBufLen = 32;
+int iRespComplete = 0;
+int iRespLen = 0;
+
+int iVdr = 0;
+int iVmot = 0;
+int iV5out = 0;
+int iMtrCtrlFaultWord = 0;
 
 
 int realtime() {
@@ -464,17 +481,6 @@ int respHandler() {
   }
 
   return 0;
-}
-
-
-
-ISR(TIMER1_COMPA_vect){
-  // increment ticks to measure the progression of time
-  ticks++;
-
-  SET_PENDING(executiveTask);
-  SET_PENDING(realtimeTask);
-  SET_PENDING(backgroundTask);
 }
 
 
