@@ -24,6 +24,7 @@
 int executive(void);
 int realtime(void);
 int background(void);
+void startTimers(unsigned int);
 
 Task executiveTask = {
   0, &executive
@@ -88,7 +89,14 @@ void setup() {
 
   // configure and start timers
   // perform this task just before exiting initialization logic, i.e. about to enter real-time mode
+  startTimers(ticksPerSecond);
+}
 
+/**
+  Setup timer 1 to call trigger the TIMER1_COMPA interrupt ticksPerSecond
+  times per second.
+*/
+void startTimers(unsigned int ticksPerSecond) {
   // disable all interrupts before messing with timer registers
   cli();
 
