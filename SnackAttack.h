@@ -4,6 +4,16 @@ typedef struct _Task {
 } Task;
 
 
+typedef enum _TaskStatus {
+  pending = 0x01
+} TaskStatus;
+
+
+#define CLEAR_STATUS(t, statusBit)  ( (t).status &= ~(statusBit) )
+#define SET_STATUS(t, statusBit)    ( (t).status |=  (statusBit) )
+#define HAS_STATUS(t, statusBit) (!!( (t).status &   (statusBit) ))
+
+
 typedef struct _ResponseBuffer {
   char buffer[32];
   unsigned int length;
@@ -20,3 +30,5 @@ typedef enum _MotorCommand {
   left,
   stop
 } MotorCommand;
+
+

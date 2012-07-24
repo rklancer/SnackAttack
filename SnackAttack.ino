@@ -12,14 +12,13 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
 
-// It is necessary to put certain user-defined types in their own header file, because
-// the Arduino IDE handles user-defined types incorrectly, see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1264694180
+/*
+  Header file with some user-defined types. Certain user-defined types
+  (particularly ones with function pointers) must go in a header file because
+  the Arduino IDE attempts to extract function prototypes incorrectly.
+  See http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1264694180
+*/
 #include "SnackAttack.h"
-
-#define PENDING 0x01
-#define CLEAR_PENDING(t) ((t).status &= ~PENDING)
-#define SET_PENDING(t) ((t).status |= PENDING)
-#define IS_PENDING(t) (!!((t).status & PENDING))
 
 const float pi = 3.141592654;
 
@@ -44,7 +43,6 @@ volatile unsigned int ticks = 0;
 /*
   Values read in from elsewhere
 */
-
 ResponseBuffer motorControllerResponse = {
   "",
   0,
@@ -176,9 +174,9 @@ ISR(TIMER1_COMPA_vect) {
   ticks++;
 
   // For now, we'll execute every task once per tick.
-  SET_PENDING(executiveTask);
-  SET_PENDING(realtimeTask);
-  SET_PENDING(backgroundTask);
+  SET_STATUS(executiveTask,  pending);
+  SET_STATUS(realtimeTask,   pending);
+  SET_STATUS(backgroundTask, pending);
 }
 
 
@@ -202,8 +200,8 @@ void loop() {
 void runIfPending(Task *t) {
   cli();
 
-  if (IS_PENDING(*t)) {
-    CLEAR_PENDING(*t);
+  if (HAS_STATUS(*t, pending)) {
+    CLEAR_STATUS(*t, pending);
     sei();
     t->taskMethod();
   }
