@@ -21,54 +21,95 @@
 #define SET_PENDING(t) ((t).status |= PENDING)
 #define IS_PENDING(t) (!!((t).status & PENDING))
 
-int executive(void);
-int realtime(void);
-int background(void);
-void startTimers(unsigned int);
+const float pi = 3.141592654;
 
-Task executiveTask = {
-  0, &executive
+/*
+  Configuration constants
+*/
+const int ticksPerSecond = 20;
+const float fMtrCmdAmp = 750.;
+const float fMtrCmdFreq = 0.25;
+
+const int iAdPinNum = 0;
+const int iLedPinNum = 13;
+const int iMtrCtrlEnablePinNum = 12;
+
+/*
+  System State
+*/
+volatile bool isConfigured = false;
+volatile bool isInitialized = false;
+volatile unsigned int ticks = 0;
+
+/*
+  Values read in from elsewhere
+*/
+typedef struct _Response {
+  char buffer[32];
+  unsigned int length;
+  boolean isComplete;
+} Response;
+
+Response motorControllerResponse = {
+  "",
+  0,
+  false
 };
+
+unsigned int uiTimer = 0;
+unsigned int uiTimerMin = 0xFFFF;
+unsigned int uiTimerMax = 0;
+
+int iAdPinVal = 0;
+int iVdr = 0;
+int iVmot = 0;
+int iV5out = 0;
+int iMtrCtrlFaultWord = 0;
+
+/*
+  Values and system state to be output
+*/
+bool mtrCtrlEnablePinVal = 0;
+boolean bLedState = false;
+MotorCommand motorCommand;
+int iMtr1Cmd = 0;
+int iMtr2Cmd = 0;
+char cMtrCmds[16] = "";
+
+/*
+  Functions and their associated Tasks
+*/
+void setup(void);
+void loop(void);
+void startTimers(unsigned int ticksPerSecond);
+void runIfPending(Task *t);
+
+void readMotorControllerResponse(void);
+void handleMotorControllerResponse(void);
+
+void constructMotorCommandString(MotorCommand command);
+
+int realtime(void);
 
 Task realtimeTask = {
   0, &realtime
 };
 
+int background(void);
+
 Task backgroundTask = {
   0, &background
 };
 
-/**
-  If Task t is marked pending, execute it.
-  Checks and clears pending status atomically.
-*/
-void runIfPending(Task *t) {
-  cli();
+int executive(void);
 
-  if (IS_PENDING(*t)) {
-    CLEAR_PENDING(*t);
-    sei();
-    t->taskMethod();
-  }
-  else {
-    sei();
-  }
-}
+Task executiveTask = {
+  0, &executive
+};
 
-volatile bool isConfigured = false;
-volatile bool isInitialized = false;
-volatile unsigned int ticks = 0;
-
-boolean bLedState = false;
-
-// These could be replaced by macros...
-const int ticksPerSecond = 20;
-const int iLedPinNum = 13;
-const int iMtrCtrlEnablePinNum = 12;
-const float pi = 3.141592654;
 
 /**
-  Do Arduino initialization here
+  Standard Arduino initialization callback
 */
 void setup() {
 
@@ -91,6 +132,7 @@ void setup() {
   // perform this task just before exiting initialization logic, i.e. about to enter real-time mode
   startTimers(ticksPerSecond);
 }
+
 
 /**
   Setup timer 1 to call trigger the TIMER1_COMPA interrupt ticksPerSecond
@@ -128,6 +170,7 @@ void startTimers(unsigned int ticksPerSecond) {
   sei();
 }
 
+
 /**
   This interrupt service routine is called by the microprocessor when
   Timer 1, as initialized by startTimer, "fires".
@@ -142,6 +185,7 @@ ISR(TIMER1_COMPA_vect) {
   SET_PENDING(backgroundTask);
 }
 
+
 /**
   The main loop just executes any tasks that need to be run and returns.
 */
@@ -155,58 +199,23 @@ void loop() {
 }
 
 
+/**
+  If Task t is marked pending, execute it.
+  Checks and clears pending status atomically.
+*/
+void runIfPending(Task *t) {
+  cli();
 
+  if (IS_PENDING(*t)) {
+    CLEAR_PENDING(*t);
+    sei();
+    t->taskMethod();
+  }
+  else {
+    sei();
+  }
+}
 
-// macros
-#define BTF(x,b)  ((x) ^= (1 << (b)))   // Bit toggle
-#define BCF(x,b)  ((x) &= ~(1 << (b)))    // Bit clear
-#define BSF(x,b)  ((x) |= (1 << (b)))   // Bit set
-#define BTEST(x,b)  (!!((x) & (1 << (b))))    // Bit test
-
-#define max(a,b)  (((a) > (b)) ? (a) : (b))
-#define min(a,b)  (((a) < (b)) ? (a) : (b))
-
-unsigned int uiTimer = 0;
-unsigned int uiTimerMin = 0xFFFF;
-unsigned int uiTimerMax = 0;
-
-int iAdPinNum = 0;
-int iAdPinVal = 0;
-
-int iMtrCtrlEnablePinVal = 0;
-
-int iMtrCmdModeSel = 0;
-
-MotorCommand motorCommand;
-
-float fMtrCmdAmp = 750.;
-float fMtrCmdFreq = 0.25;
-
-int iMtr1Cmd = 0;
-int iMtr2Cmd = 0;
-char cMtrCmds[16] = "";
-
-char cDataBuf[128] = "";
-
-typedef struct _Response {
-  char buffer[32];
-  unsigned int length;
-  boolean isComplete;
-} Response;
-
-Response motorControllerResponse = {
-  "",
-  0,
-  false
-};
-
-void readMotorControllerResponse(void);
-void handleMotorControllerResponse(void);
-
-int iVdr = 0;
-int iVmot = 0;
-int iV5out = 0;
-int iMtrCtrlFaultWord = 0;
 
 /**
   Append motor controller response (on Serial1) to buffer, callback to
@@ -255,6 +264,7 @@ void handleMotorControllerResponse(void) {
   motorControllerResponse.length = 0;
   motorControllerResponse.isComplete = false;
 }
+
 
 /**
   Set the string 'cMtrCmds' to the appropriate motor command string.
@@ -366,7 +376,7 @@ int realtime() {
 
   // decide if motor control board should be disabled/enabled
   // for now, set to enabled
-  iMtrCtrlEnablePinVal = 1;
+  mtrCtrlEnablePinVal = true;
 
   // output signal management:
   // write messages to the motor controller
@@ -377,7 +387,7 @@ int realtime() {
   digitalWrite(iLedPinNum, bLedState ? HIGH : LOW);
 
   // disable/enable motor control board
-  digitalWrite(iMtrCtrlEnablePinNum, iMtrCtrlEnablePinVal == 0 ? LOW : HIGH);
+  digitalWrite(iMtrCtrlEnablePinNum, mtrCtrlEnablePinVal ? HIGH : LOW);
 
   if (isInitialized && !isConfigured) {
     // send configuration commands to motor controller
@@ -408,6 +418,7 @@ int realtime() {
   }
 
   if ((ticks % 5) == 0) {
+    char cDataBuf[128];
     // send data to laptop
     // size of cDataBuf is 128 bytes. do not attempt to load with more than 127 bytes. otherwise, null termination
     // byte will be overwritten such that library functions do not work properly. also, data written beyond 128
@@ -441,15 +452,17 @@ int realtime() {
   return 0;
 }
 
+/*
+  Background task.
+  Execute any tasks that are not time sensitive and might take a long time to complete
+  transmission of large amount of status data
+  handling input commands from an external computer
+  etc.
+*/
 int background() {
-
-  // execute any tasks that are not time sensitive and might take a long time to complete
-  // transmission of large amount of status data
-  // handling input commands from an external computer
-  // etc.
-
   return 0;
 }
+
 
 int executive() {
   return 0;
