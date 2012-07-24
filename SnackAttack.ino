@@ -177,6 +177,8 @@ int iMtrCtrlEnablePinVal = 0;
 
 int iMtrCmdModeSel = 0;
 
+MotorCommand motorCommand;
+
 float fMtrCmdAmp = 750.;
 float fMtrCmdFreq = 0.25;
 
@@ -185,8 +187,6 @@ int iMtr2Cmd = 0;
 char cMtrCmds[16] = "";
 
 char cDataBuf[128] = "";
-
-int iSerCmd = 0;
 
 typedef struct _Response {
   char buffer[32];
@@ -256,6 +256,62 @@ void handleMotorControllerResponse(void) {
   motorControllerResponse.isComplete = false;
 }
 
+/**
+  Set the string 'cMtrCmds' to the appropriate motor command string.
+*/
+void constructMotorCommandString(MotorCommand command) {
+  // operational logic:
+  // line-following,
+  // collision avoidance using distance sensors,
+  // emergency stop activation based on state of bumpers and buttons that may be pressed by a human
+  // detect, declare, and accomodate any operational faults, e.g. motor wheel leaving the ground
+
+  switch (command) {
+    case autonomous:
+      // autonomous mode
+      // compute commands to implement line-following
+      // for now, set commands consistent with zero speed
+      iMtr1Cmd = 0;
+      iMtr2Cmd = 0;
+      break;
+    case sinusoidal:
+      // set sinusoidal values
+      iMtr1Cmd = (int)(fMtrCmdAmp*sin(2.*pi*fMtrCmdFreq * (0.001 * (float)millis())));
+      iMtr2Cmd = (int)(fMtrCmdAmp*sin(2.*pi*fMtrCmdFreq * (0.001 * (float)millis())));
+      break;
+    case forward:
+      iMtr1Cmd = 750;
+      iMtr2Cmd = 750;
+      break;
+    case backward:
+      iMtr1Cmd = -750;
+      iMtr2Cmd = -750;
+      break;
+    case left:
+      iMtr1Cmd = -750;
+      iMtr2Cmd = 750;
+      break;
+    case right:
+      iMtr1Cmd = 750;
+      iMtr2Cmd = -750;
+      break;
+    case stop:
+      iMtr1Cmd = 0;
+      iMtr2Cmd = 0;
+      break;
+    default:
+      // error
+      // set commands consistent with zero speed
+      iMtr1Cmd = 0;
+      iMtr2Cmd = 0;
+      break;
+  }
+
+  // construct command to be sent to the motor controller
+  // command value associated with motor 1 must be multiplied by -1 due to encoder polarity issue
+  sprintf(cMtrCmds, "!M %i %i\r", -1*iMtr1Cmd, iMtr2Cmd);
+}
+
 
 /**
   Real-time logic. Executes once per timer tick.
@@ -278,106 +334,35 @@ int realtime() {
 
   readMotorControllerResponse();
 
-  // read data from the serial port
-  // temporarily deactivate the following so that can test logic for reading data from motor controller
-  // usinf serial port 0
-  if (Serial.available() > 0) {
-    iSerCmd = Serial.read();
-    // the following is to support debugging
-    // sprintf(cSerCmdResp, "iSerCmd = %i\r", iSerCmd);
-    // Serial.print(cSerCmdResp);
-  }
-
   // if a user command was received over the serial port, then set corresponding mode for calculating the
   // commands to send to the motor controller
-  switch (iSerCmd) {
-    case 83:
-      // 'S': sinusoidal
-      iMtrCmdModeSel = 1;
+  switch ((char)Serial.read()) {
+    case 'S':
+      motorCommand = sinusoidal;
       break;
-    case 97:
-      // 'a': autonomous
-      iMtrCmdModeSel = 0;
+    case 'a':
+      motorCommand = autonomous;
       break;
-    case 98:
-      // 'b': backwards
-      iMtrCmdModeSel = 11;
+    case 'b':
+      motorCommand = backward;
       break;
-    case 102:
-      // 'f': forward
-      iMtrCmdModeSel = 10;
+    case 'f':
+      motorCommand = forward;
       break;
-    case 108:
-      // 'l': left
-      iMtrCmdModeSel = 12;
+    case 'l':
+      motorCommand = left;
       break;
-    case 114:
-      // 'r': right
-      iMtrCmdModeSel = 13;
+    case 'r':
+      motorCommand = right;
       break;
-    case 115:
-      // 's': stop
-      iMtrCmdModeSel = 14;
+    case 's':
+      motorCommand = stop;
       break;
     default:
       break;
   }
 
-  // operational logic:
-  // line-following,
-  // collision avoidance using distance sensors,
-  // emergency stop activation based on state of bumpers and buttons that may be pressed by a human
-  // detect, declare, and accomodate any operational faults, e.g. motor wheel leaving the ground
-
-  switch(iMtrCmdModeSel){
-    case 0:
-      // autonomous mode
-      // compute commands to implement line-following
-      // for now, set commands consistent with zero speed
-      iMtr1Cmd = 0;
-      iMtr2Cmd = 0;
-      break;
-    case 1:
-      // set sinusoidal values
-      iMtr1Cmd = (int)(fMtrCmdAmp*sin(2.*pi*fMtrCmdFreq * (0.001 * (float)millis())));
-      iMtr2Cmd = (int)(fMtrCmdAmp*sin(2.*pi*fMtrCmdFreq * (0.001 * (float)millis())));
-      break;
-    case 10:
-      // forward
-      iMtr1Cmd = 750;
-      iMtr2Cmd = 750;
-      break;
-    case 11:
-      // backwards
-      iMtr1Cmd = -750;
-      iMtr2Cmd = -750;
-      break;
-    case 12:
-      // left
-      iMtr1Cmd = -750;
-      iMtr2Cmd = 750;
-      break;
-    case 13:
-      // right
-      iMtr1Cmd = 750;
-      iMtr2Cmd = -750;
-      break;
-    case 14:
-      // stop
-      iMtr1Cmd = 0;
-      iMtr2Cmd = 0;
-      break;
-    default:
-      // error
-      // set commands consistent with zero speed
-      iMtr1Cmd = 0;
-      iMtr2Cmd = 0;
-      break;
-  }
-  // construct command to be sent to the motor controller
-  // command value associated with motor 1 must be multiplied by -1 due to encoder polarity issue
-  iTmp = -1*iMtr1Cmd;
-  sprintf(cMtrCmds, "!M %i %i\r", iTmp, iMtr2Cmd);
+  constructMotorCommandString(motorCommand);
 
   // decide if motor control board should be disabled/enabled
   // for now, set to enabled
@@ -392,11 +377,7 @@ int realtime() {
   digitalWrite(iLedPinNum, bLedState ? HIGH : LOW);
 
   // disable/enable motor control board
-  if(iMtrCtrlEnablePinVal == 0){
-    digitalWrite(iMtrCtrlEnablePinNum, LOW);
-  } else{
-    digitalWrite(iMtrCtrlEnablePinNum, HIGH);
-  }
+  digitalWrite(iMtrCtrlEnablePinNum, iMtrCtrlEnablePinVal == 0 ? LOW : HIGH);
 
   if (isInitialized && !isConfigured) {
     // send configuration commands to motor controller
@@ -422,7 +403,7 @@ int realtime() {
   if (isInitialized && (ticks % ticksPerSecond) == 0) {
     // send queries to motor controller
     Serial1.print("?FF 1\r");
-//    Serial1.print("?FF 2\r");
+    // Serial1.print("?FF 2\r");
     Serial1.print("?V\r");
   }
 
@@ -450,10 +431,10 @@ int realtime() {
   interrupts();
 
   // keep track of the min and max timer values
-  if(uiTimer < uiTimerMin){
+  if (uiTimer < uiTimerMin ){
     uiTimerMin = uiTimer;
   }
-  if(uiTimer > uiTimerMax){
+  if (uiTimer > uiTimerMax) {
     uiTimerMax = uiTimer;
   }
 
