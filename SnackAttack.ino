@@ -12,7 +12,7 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
 
-// It is necessary to put user-defined types in their own header file, because
+// It is necessary to put certain user-defined types in their own header file, because
 // the Arduino IDE handles user-defined types incorrectly, see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1264694180
 #include "SnackAttack.h"
 
@@ -44,13 +44,8 @@ volatile unsigned int ticks = 0;
 /*
   Values read in from elsewhere
 */
-typedef struct _Response {
-  char buffer[32];
-  unsigned int length;
-  boolean isComplete;
-} Response;
 
-Response motorControllerResponse = {
+ResponseBuffer motorControllerResponse = {
   "",
   0,
   false
@@ -69,9 +64,10 @@ int iMtrCtrlFaultWord = 0;
 /*
   Values and system state to be output
 */
-bool mtrCtrlEnablePinVal = 0;
 boolean bLedState = false;
+
 MotorCommand motorCommand;
+bool mtrCtrlEnablePinVal = 0;
 int iMtr1Cmd = 0;
 int iMtr2Cmd = 0;
 char cMtrCmds[16] = "";
