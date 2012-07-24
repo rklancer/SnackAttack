@@ -62,6 +62,7 @@ volatile unsigned int ticks = 0;
 
 const int iLedPinNum = 13;
 const int iMtrCtrlEnablePinNum = 12;
+const float pi = 3.141592654;
 
 /**
   Do Arduino initialization here
@@ -158,7 +159,6 @@ int respHandler(void);
 unsigned int uiTimer = 0;
 unsigned int uiTimerMin = 0xFFFF;
 unsigned int uiTimerMax = 0;
-float fTime = 0.;
 
 int iLedState = 0;
 
@@ -206,9 +206,6 @@ int realtime() {
     // set flag to indicate to the downstream logic that system is now initialized
     isInitialized = true;
   }
-
-  // keep track of time elapsed since last MCU reset
-  fTime += 0.05;
 
 // to indicate that the MCU is alive, toggle the state of the LED attached to pin 13 once every 1 s
 //  if((ticks % 61) == 0){    // if using timer 2
@@ -329,8 +326,8 @@ int realtime() {
       break;
     case 1:
       // set sinusoidal values
-      iMtr1Cmd = (int)(fMtrCmdAmp*sin(2.*3.1416*fMtrCmdFreq*fTime));
-      iMtr2Cmd = (int)(fMtrCmdAmp*sin(2.*3.1416*fMtrCmdFreq*fTime));
+      iMtr1Cmd = (int)(fMtrCmdAmp*sin(2.*pi*fMtrCmdFreq * (0.001 * (float)millis())));
+      iMtr2Cmd = (int)(fMtrCmdAmp*sin(2.*pi*fMtrCmdFreq * (0.001 * (float)millis())));
       break;
     case 10:
       // forward
