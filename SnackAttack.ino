@@ -60,6 +60,8 @@ volatile bool isConfigured = false;
 volatile bool isInitialized = false;
 volatile unsigned int ticks = 0;
 
+boolean bLedState = false;
+
 const int iLedPinNum = 13;
 const int iMtrCtrlEnablePinNum = 12;
 const float pi = 3.141592654;
@@ -160,8 +162,6 @@ unsigned int uiTimer = 0;
 unsigned int uiTimerMin = 0xFFFF;
 unsigned int uiTimerMax = 0;
 
-int iLedState = 0;
-
 int iAdPinNum = 0;
 int iAdPinVal = 0;
 
@@ -207,15 +207,9 @@ int realtime() {
     isInitialized = true;
   }
 
-// to indicate that the MCU is alive, toggle the state of the LED attached to pin 13 once every 1 s
-//  if((ticks % 61) == 0){    // if using timer 2
-  if((ticks % TICKS_PER_SECOND) == 0){      // if using timer 1
-//    ticks = 0;
-    if(iLedState == 0){
-      iLedState = 1;
-    }else{
-      iLedState = 0;
-    }
+  // Blink the LED with a 1s period to indicate that the MCU is alive.
+  if (ticks % TICKS_PER_SECOND == 0) {
+    bLedState = !bLedState;
   }
 
   // input signal management:
@@ -376,12 +370,7 @@ int realtime() {
   // turns out that the Arduino buffers data to be transmitted through each serial port. accordingly,
   // do not need to have the background task do this
   // etc.
-
-  if(iLedState == 0){
-    digitalWrite(iLedPinNum, LOW);    // turn the LED off
-  }else{
-    digitalWrite(iLedPinNum, HIGH);   // turn the LED on
-  }
+  digitalWrite(iLedPinNum, bLedState ? HIGH : LOW);
 
   // disable/enable motor control board
   if(iMtrCtrlEnablePinVal == 0){
