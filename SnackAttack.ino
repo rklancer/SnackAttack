@@ -129,7 +129,7 @@ void startTimers(unsigned int ticksPerSecond) {
 }
 
 /**
-  This interrupt service routine is called by the microprocesser when
+  This interrupt service routine is called by the microprocessor when
   Timer 1, as initialized by startTimer, "fires".
 */
 ISR(TIMER1_COMPA_vect) {
