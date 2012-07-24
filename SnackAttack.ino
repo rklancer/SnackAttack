@@ -34,7 +34,7 @@ const int iLedPinNum = 13;
 const int iMtrCtrlEnablePinNum = 12;
 
 /*
-  System State
+  System State (updated by interrupt handlers)
 */
 volatile bool isConfigured = false;
 volatile bool isInitialized = false;
@@ -71,7 +71,7 @@ int iMtr2Cmd = 0;
 char cMtrCmds[16] = "";
 
 /*
-  Functions and their associated Tasks
+  Functions prototypes
 */
 void setup(void);
 void loop(void);
@@ -80,9 +80,13 @@ void runIfPending(Task *t);
 
 void readMotorControllerResponse(void);
 void handleMotorControllerResponse(void);
-
 void constructMotorCommandString(MotorCommand command);
 
+
+/*
+  Function prototypes and Task definitions for tasks to be run in
+  loop
+*/
 int realtime(void);
 
 Task realtimeTask = {
@@ -103,7 +107,7 @@ Task executiveTask = {
 
 
 /**
-  Standard Arduino initialization callback
+  The standard Arduino initialization callback. Initialie the Arduino here.
 */
 void setup() {
 
