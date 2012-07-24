@@ -166,16 +166,12 @@ void loop() {
 #define max(a,b)  (((a) > (b)) ? (a) : (b))
 #define min(a,b)  (((a) < (b)) ? (a) : (b))
 
-// function prototypes
-int respHandler(void);
-
 unsigned int uiTimer = 0;
 unsigned int uiTimerMin = 0xFFFF;
 unsigned int uiTimerMax = 0;
 
 int iAdPinNum = 0;
 int iAdPinVal = 0;
-
 
 int iMtrCtrlEnablePinVal = 0;
 
@@ -191,18 +187,75 @@ char cMtrCmds[16] = "";
 char cDataBuf[128] = "";
 
 int iSerCmd = 0;
-//char cSerCmdResp[32] = "";
 
-char cRespBuf[32] = "";
-char cRespByte = 0x00;
-int iRespBufLen = 32;
-int iRespComplete = 0;
-int iRespLen = 0;
+typedef struct _Response {
+  char buffer[32];
+  unsigned int length;
+  boolean isComplete;
+} Response;
+
+Response motorControllerResponse = {
+  "",
+  0,
+  false
+};
+
+void readMotorControllerResponse(void);
+void handleMotorControllerResponse(void);
 
 int iVdr = 0;
 int iVmot = 0;
 int iV5out = 0;
 int iMtrCtrlFaultWord = 0;
+
+/**
+  Append motor controller response (on Serial1) to buffer, callback to
+  handleMotorControllerResponse if complete
+*/
+void readMotorControllerResponse(void) {
+  // process complete responses, i.e. series of characters terminated by '\r'
+
+  char responseByte;
+
+  while (Serial1.available() > 0) {
+
+    responseByte = Serial1.read();
+
+    if (responseByte == '\r') {
+      motorControllerResponse.buffer[motorControllerResponse.length++] = '\0';
+      motorControllerResponse.isComplete = true;
+      handleMotorControllerResponse();
+      return;
+    }
+    else if (motorControllerResponse.length < (sizeof(motorControllerResponse.buffer) - 1)) {
+      motorControllerResponse.buffer[motorControllerResponse.length++] = responseByte;
+    }
+    // Skip (truncate) characters that don't fit in the buffer.
+  }
+}
+
+/**
+  Handle completed motor controller response.
+*/
+void handleMotorControllerResponse(void) {
+  // determine the type of motor controller response
+  // and parse the data based on the expected format
+
+  if (motorControllerResponse.buffer[0] == 'V') {
+    // Serial.println("Handling V resp type ...");
+    sscanf(motorControllerResponse.buffer, "V = %i : %i : %i", &iVdr, &iVmot, &iV5out);
+  }
+
+  if (motorControllerResponse.buffer[0] == 'F') {
+    // Serial.println("Handling FF resp type ...");
+    sscanf(motorControllerResponse.buffer, "FF = %i", &iMtrCtrlFaultWord);
+  }
+
+  motorControllerResponse.buffer[0] = '\0';
+  motorControllerResponse.length = 0;
+  motorControllerResponse.isComplete = false;
+}
+
 
 /**
   Real-time logic. Executes once per timer tick.
@@ -223,48 +276,7 @@ int realtime() {
     bLedState = !bLedState;
   }
 
-  // TODO:
-  // readMotorControllerResponse();
-
-  // read responses from motor controller
-  // process complete responses, i.e. series of characters terminated by '\r'
-  //  while(Serial.available() > 0){
-  while(Serial1.available() > 0){
-    //    cRespByte = Serial.read();
-    cRespByte = Serial1.read();
-    if(cRespByte == '\r'){
-      iRespComplete = 1;
-    }
-    if((cRespByte != -1) & (iRespComplete == 0)){
-      // response is not yet completely received and
-      // new byte has been received. append the new byte to the array of bytes previously accumulated
-      cRespBuf[iRespLen] = cRespByte;
-      iRespLen++;
-    }
-    if(!(iRespLen < iRespBufLen)){
-      // buffer is too small to handle the incoming response
-      // abort
-      for(i = 0; i < iRespBufLen; i++){
-        cRespBuf[i] = '\0';
-      }
-      iRespLen = 0;
-    }
-    if(iRespComplete != 0){
-      // call command response handler
-      // for now, just send the data back to the sender
-//      Serial.write(cRespBuf);
-      respHandler();
-//      Serial.print(iVmot, DEC);
-//      Serial.print(iMtrCtrlFaultWord, DEC);
-      // prepare for receiving and processing a new response
-      // clear buffer amd reset meta data
-      for(i = 0; i < iRespBufLen; i++){
-        cRespBuf[i] = '\0';
-      }
-      iRespLen = 0;
-      iRespComplete = 0;
-    }
-  }
+  readMotorControllerResponse();
 
   // read data from the serial port
   // temporarily deactivate the following so that can test logic for reading data from motor controller
@@ -278,7 +290,7 @@ int realtime() {
 
   // if a user command was received over the serial port, then set corresponding mode for calculating the
   // commands to send to the motor controller
-  switch(iSerCmd) {
+  switch (iSerCmd) {
     case 83:
       // 'S': sinusoidal
       iMtrCmdModeSel = 1;
@@ -461,23 +473,6 @@ int background() {
 int executive() {
   return 0;
 }
-
-int respHandler() {
-  // determine the type of motor controller response
-  // and parse the data based on the expected format
-
-  if(cRespBuf[0] == 'V'){
-//    Serial.println("Handling V resp type ...");
-    sscanf(cRespBuf, "V = %i : %i : %i", &iVdr, &iVmot, &iV5out);
-  }
-  if(cRespBuf[0] == 'F'){
-//    Serial.println("Handling FF resp type ...");
-    sscanf(cRespBuf, "FF = %i", &iMtrCtrlFaultWord);
-  }
-
-  return 0;
-}
-
 
 //----------------------------------------------------------------------------80
 // end of file
