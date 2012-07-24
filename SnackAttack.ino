@@ -14,7 +14,7 @@
 
 // It is necessary to put user-defined types in their own header file, because
 // the Arduino IDE handles user-defined types incorrectly, see http://www.arduino.cc/cgi-bin/yabb2/YaBB.pl?num=1264694180
-#include "task.h"
+#include "SnackAttack.h"
 
 #define PENDING 0x01
 #define CLEAR_PENDING(t) ((t).status &= ~PENDING)
