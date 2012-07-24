@@ -54,14 +54,14 @@ void runIfPending(Task *t) {
   }
 }
 
-#define TICKS_PER_SECOND 20
-
 volatile bool isConfigured = false;
 volatile bool isInitialized = false;
 volatile unsigned int ticks = 0;
 
 boolean bLedState = false;
 
+// These could be replaced by macros...
+const int ticksPerSecond = 20;
 const int iLedPinNum = 13;
 const int iMtrCtrlEnablePinNum = 12;
 const float pi = 3.141592654;
@@ -106,7 +106,7 @@ void setup() {
   // counts per timer interrupt.
   // Set the compare-match register to that value, minus 1 to account for the 1
   // clock cycle used to clear the counter.
-  OCR1A = (16000000 / 64) / TICKS_PER_SECOND - 1;
+  OCR1A = (16000000 / 64) / ticksPerSecond - 1;
 
   // Turn on Clear Timer on Compare Match mode.
   // This causes a timer interrupt to be triggered whenever the Timer 1 counter equals the
@@ -120,7 +120,23 @@ void setup() {
   sei();
 }
 
+/**
+  This interrupt service routine is called by the microprocesser when
+  Timer 1, as initialized by startTimer, "fires".
+*/
+ISR(TIMER1_COMPA_vect) {
+  // Increment `ticks` to measure the progression of time
+  ticks++;
 
+  // For now, we'll execute every task once per tick.
+  SET_PENDING(executiveTask);
+  SET_PENDING(realtimeTask);
+  SET_PENDING(backgroundTask);
+}
+
+/**
+  The main loop just executes any tasks that need to be run and returns.
+*/
 void loop() {
   // Note that Arduino's main() busy waits: it sets up an infinite loop which calls our
   // loop(). Therefore, there is little to be gained by not returning from loop()
@@ -129,19 +145,6 @@ void loop() {
   runIfPending(&backgroundTask);
   runIfPending(&realtimeTask);
 }
-
-
-ISR(TIMER1_COMPA_vect){
-  // Increment `ticks` to measure the progression of time
-  ticks++;
-
-  // For now, we'll execute every task per tick.
-  SET_PENDING(executiveTask);
-  SET_PENDING(realtimeTask);
-  SET_PENDING(backgroundTask);
-}
-
-
 
 
 
@@ -193,47 +196,33 @@ int iVmot = 0;
 int iV5out = 0;
 int iMtrCtrlFaultWord = 0;
 
-
+/**
+  Real-time logic. Executes once per timer tick.
+*/
 int realtime() {
-  // real-time logic. Executes TICKS_PER_SECOND times per second.
-
   int i = 0;
   int iTmp = 0;
 
   if (millis() > 1250) {
     // Arduino has been powered-up for 1.25 seconds.
-    // the rest of the system, e.g. motor controller should be powered up as well
-    // set flag to indicate to the downstream logic that system is now initialized
+    // By now, the rest of the system, e.g. motor controller should be powered up as well.
+    // set flag to indicate to the downstream logic that system is now initialized.
     isInitialized = true;
   }
 
   // Blink the LED with a 1s period to indicate that the MCU is alive.
-  if (ticks % TICKS_PER_SECOND == 0) {
+  if (ticks % ticksPerSecond == 0) {
     bLedState = !bLedState;
   }
 
-  // input signal management:
-  // read inputs, e.g. A/Ds, digital inputs, commands/messages received over serial port
-  // validate inputs
-  // detect, declare, and accomodate any signal faults
-  // e.g. read AD ch 0 with pin connected to on-board 3.3 V
-  iAdPinVal = analogRead(iAdPinNum);
-
-  // read data from the serial port
-  // temporarily deactivate the following so that can test logic for reading data from motor controller
-  // usinf serial port 0
-  if(Serial.available() > 0) {
-    iSerCmd = Serial.read();
-    // the following is to support debugging
-//    sprintf(cSerCmdResp, "iSerCmd = %i\r", iSerCmd);
-//    Serial.print(cSerCmdResp);
-  }
+  // TODO:
+  // readMotorControllerResponse();
 
   // read responses from motor controller
   // process complete responses, i.e. series of characters terminated by '\r'
-//  while(Serial.available() > 0){
+  //  while(Serial.available() > 0){
   while(Serial1.available() > 0){
-//    cRespByte = Serial.read();
+    //    cRespByte = Serial.read();
     cRespByte = Serial1.read();
     if(cRespByte == '\r'){
       iRespComplete = 1;
@@ -269,9 +258,19 @@ int realtime() {
     }
   }
 
+  // read data from the serial port
+  // temporarily deactivate the following so that can test logic for reading data from motor controller
+  // usinf serial port 0
+  if (Serial.available() > 0) {
+    iSerCmd = Serial.read();
+    // the following is to support debugging
+    // sprintf(cSerCmdResp, "iSerCmd = %i\r", iSerCmd);
+    // Serial.print(cSerCmdResp);
+  }
+
   // if a user command was received over the serial port, then set corresponding mode for calculating the
   // commands to send to the motor controller
-  switch(iSerCmd){
+  switch(iSerCmd) {
     case 83:
       // 'S': sinusoidal
       iMtrCmdModeSel = 1;
@@ -375,7 +374,7 @@ int realtime() {
   // disable/enable motor control board
   if(iMtrCtrlEnablePinVal == 0){
     digitalWrite(iMtrCtrlEnablePinNum, LOW);
-  }else{
+  } else{
     digitalWrite(iMtrCtrlEnablePinNum, HIGH);
   }
 
@@ -400,18 +399,20 @@ int realtime() {
     Serial1.print(cMtrCmds);
   }
 
-  if (isInitialized && (ticks % TICKS_PER_SECOND) == 0) {
+  if (isInitialized && (ticks % ticksPerSecond) == 0) {
     // send queries to motor controller
     Serial1.print("?FF 1\r");
 //    Serial1.print("?FF 2\r");
     Serial1.print("?V\r");
   }
 
-  if((ticks % 5) == 0){
+  if ((ticks % 5) == 0) {
     // send data to laptop
     // size of cDataBuf is 128 bytes. do not attempt to load with more than 127 bytes. otherwise, null termination
     // byte will be overwritten such that library functions do not work properly. also, data written beyond 128
     // bytes will corrupt RAM
+
+    int iAdPinVal = analogRead(iAdPinNum);
 
     // load the buffer and transmit the buffer
     // note that the Arduino library implementation of sprintf does not support floats
