@@ -7,14 +7,15 @@ http://letsmakerobots.com/node/28278
 
 note infinite loop in Arduino's main.cpp is there however you implement loop()! see https://github.com/arduino/Arduino/blob/master/hardware/arduino/cores/arduino/main.cpp
 
-delay() also appears to busy wait! -- see 
+delay() also appears to busy wait! -- see
 
 Could make timers more clear using FlexiTimer2 -- http://www.arduino.cc/playground/Main/FlexiTimer2
 
-
+Why wait til the end of realtime() to write output pins? Well, digitalWrite is slow -- http://www.instructables.com/id/Arduino-is-Slow-and-how-to-fix-it/?ALLSTEPS
+Also see AVR035: Efficient C Coding for AVR at http://www.atmel.com/Images/doc1497.pdf
 --
   use delay so we're not busy waiting in loop()
-  
+
   if splitting up state and I/O in realitime(), explicitly make a 'state' structure
 
   Could make timers more clear using FlexiTimer2 -- http://www.arduino.cc/playground/Main/FlexiTimer2
@@ -40,7 +41,7 @@ status_bkgnd
 
 timer 1
 ---
-  setup: 
+  setup:
 
 	TCCR1A = 0x00;
 	TCCR1C = 0x00;
@@ -118,8 +119,8 @@ realtime
 	  if it's a quarter-second interval:
 	    send various stuff to the serial "0" port (laptop):
 
-	      statusind, uiTimer, uiTimerMin, uiTimerMax, 
-	      iAdPinVal, 
+	      statusind, uiTimer, uiTimerMin, uiTimerMax,
+	      iAdPinVal,
 	      iMtr1Cmd, iMtr2Cmd,
 	      iVmot, iMtrCtrlFaultWord
 
