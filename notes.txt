@@ -137,8 +137,32 @@ realtime
 
 
 
--- TODO
+Motor controller queries and responses
+---
 
-statusind -> ticks
-macros for which task to complete
+Only setup command set by arduino is echo disabling:
+
+  "^ECHOF 1\r"
+
+Cmmand for controlling motors is apparently:
+
+  "!M <m1> <m2>\r" where m1 and m2 are speeds
+
+We send a "V" and an "FF" query every second tick after motor controller is enabled:
+
+  "?FF 1\r"
+  "?V\r"
+
+Expected motor controller responses are parsed as follows (scanf format):
+
+  "V = %i : %i : %i" -> Vdr, Vout, V5out
+  "FF = %i"   -> 'motor controller fault word'
+
+
+Pins
+---
+
+  0 - ADC pin, purpose = ?
+  13 - LED, for blinking
+  12 - Motor Control enable
 
